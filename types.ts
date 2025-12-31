@@ -1,5 +1,6 @@
 export interface MarketingPost {
   id: string;
+  user_id: string;
   title: string;
   url?: string;
   primary_topic: string;
@@ -8,7 +9,7 @@ export interface MarketingPost {
   summary: string[];
   key_insights: string[];
   original_text: string;
-  dateSaved: string;
+  created_at: string;
 }
 
 export interface MarketingCategory {

@@ -4,6 +4,7 @@ import { MARKETING_CATEGORIES } from './constants';
 import PostCard from './components/PostCard';
 import PostDetail from './components/PostDetail';
 import PostInput from './components/PostInput';
+import { fetchUserPosts } from './geminiService';
 
 const App: React.FC = () => {
   const [posts, setPosts] = useState<MarketingPost[]>([]);
@@ -11,21 +12,37 @@ const App: React.FC = () => {
   const [selectedPost, setSelectedPost] = useState<MarketingPost | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState<string>('');
 
+  // Initialiseer unieke anonieme user ID voor dit apparaat
   useEffect(() => {
-    const saved = localStorage.getItem('marketer_pulse_posts');
-    if (saved) {
-      try {
-        setPosts(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load saved posts");
-      }
+    let id = localStorage.getItem('marketer_pulse_user_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('marketer_pulse_user_id', id);
     }
+    setUserId(id);
   }, []);
 
+  // Laad posts van de database wanneer userId bekend is
   useEffect(() => {
-    localStorage.setItem('marketer_pulse_posts', JSON.stringify(posts));
-  }, [posts]);
+    if (!userId) return;
+
+    const loadPosts = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchUserPosts(userId);
+        setPosts(data);
+      } catch (e) {
+        console.error("Failed to load posts from database", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPosts();
+  }, [userId]);
 
   const filteredPosts = useMemo(() => {
     return posts.filter(post => {
@@ -112,7 +129,11 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex-grow">
-          {filteredPosts.length > 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : filteredPosts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredPosts.map(post => (
                 <PostCard key={post.id} post={post} onClick={handlePostClick} />
@@ -174,6 +195,7 @@ const App: React.FC = () => {
         {viewMode === ViewMode.Dashboard && renderDashboard()}
         {viewMode === ViewMode.NewPost && (
           <PostInput 
+            userId={userId}
             onPostCreated={handlePostCreated} 
             onCancel={() => setViewMode(ViewMode.Dashboard)} 
           />

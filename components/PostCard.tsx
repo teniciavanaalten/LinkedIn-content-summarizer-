@@ -7,6 +7,10 @@ interface PostCardProps {
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
+  const formattedDate = post.created_at 
+    ? new Date(post.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Onbekend';
+
   return (
     <div 
       onClick={() => onClick(post)}
@@ -27,9 +31,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
       </p>
 
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-        <span className="text-xs text-slate-400">{post.dateSaved}</span>
+        <span className="text-xs text-slate-400">{formattedDate}</span>
         <div className="flex gap-1">
-          {post.secondary_topics.slice(0, 1).map(topic => (
+          {post.secondary_topics && post.secondary_topics.slice(0, 1).map(topic => (
             <span key={topic} className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
               {topic}
             </span>

@@ -7,6 +7,10 @@ interface PostDetailProps {
 }
 
 const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
+  const formattedDate = post.created_at 
+    ? new Date(post.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Onbekend';
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <button 
@@ -25,7 +29,7 @@ const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
             <span className="text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 px-3 py-1 rounded-full">
               {post.primary_topic}
             </span>
-            {post.secondary_topics.map(topic => (
+            {post.secondary_topics && post.secondary_topics.map(topic => (
               <span key={topic} className="text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
                 {topic}
               </span>
@@ -46,7 +50,7 @@ const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
               </a>
             )}
             <div>
-              <span className="font-semibold text-slate-900 mr-2">Saved:</span> {post.dateSaved}
+              <span className="font-semibold text-slate-900 mr-2">Saved:</span> {formattedDate}
             </div>
           </div>
         </div>
@@ -62,7 +66,7 @@ const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
           <section>
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">No-Fluff Summary</h2>
             <ul className="space-y-4">
-              {post.summary.map((point, idx) => (
+              {post.summary && post.summary.map((point, idx) => (
                 <li key={idx} className="flex items-start">
                   <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0 mr-3"></div>
                   <span className="text-slate-700 leading-relaxed">{point}</span>
@@ -74,7 +78,7 @@ const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
           <section>
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Key Strategic Insights</h2>
             <div className="grid grid-cols-1 gap-4">
-              {post.key_insights.map((insight, idx) => (
+              {post.key_insights && post.key_insights.map((insight, idx) => (
                 <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start">
                   <svg className="w-5 h-5 text-indigo-500 mt-0.5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
