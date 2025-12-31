@@ -8,8 +8,7 @@ const LOCAL_STORAGE_KEY = 'marketerpulse_library';
  */
 const getBrowserApiKey = (): string | undefined => {
   try {
-    const win = window as any;
-    return win.process?.env?.API_KEY || process.env?.API_KEY;
+    return (window as any).process?.env?.API_KEY || (process.env as any)?.API_KEY;
   } catch {
     return undefined;
   }
@@ -32,7 +31,7 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
 
   // Client-side fallback (requires local API_KEY)
   const apiKey = getBrowserApiKey();
-  if (!apiKey) throw new Error("Connection failed. Check your internet or Vercel API configuration.");
+  if (!apiKey) throw new Error("Connection failed. Please check your internet or Vercel API configuration.");
 
   const ai = new GoogleGenAI({ apiKey });
   const result = await ai.models.generateContent({
@@ -83,8 +82,8 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
     }
     
     if (data.error) {
-      console.error("Strategist Error Details:", data.debug);
-      return `Strategist Error: ${data.error} (Check console for debug info)`;
+      console.error("Strategist Debug Info:", data.debug);
+      return `Strategist Error: ${data.error}`;
     }
   } catch (e: any) {
     console.error("Chat connection error:", e);
@@ -92,7 +91,7 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
 
   // Client-side fallback if server fails
   const apiKey = getBrowserApiKey();
-  if (!apiKey) return "The strategist is unreachable. This is likely a configuration issue in Vercel.";
+  if (!apiKey) return "The strategist is unavailable. This is usually due to missing API_KEY or database connection issues in Vercel.";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
