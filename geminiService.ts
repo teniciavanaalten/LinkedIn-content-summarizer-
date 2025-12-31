@@ -4,9 +4,6 @@ import { ChatMessage, MarketingPost } from "./types";
 
 const LOCAL_STORAGE_KEY = 'marketerpulse_library';
 
-/**
- * Safely access environment variables with a fallback
- */
 const getSafeEnv = (key: string): string | undefined => {
   try {
     return typeof process !== 'undefined' ? (process.env as any)[key] : undefined;
@@ -15,26 +12,7 @@ const getSafeEnv = (key: string): string | undefined => {
   }
 };
 
-/**
- * Initialize Client-side Supabase (Fallback only)
- */
-const getSupabaseFallback = () => {
-  const url = getSafeEnv('SUPABASE_URL');
-  const key = getSafeEnv('SUPABASE_ANON_KEY');
-  if (!url || !key) return null;
-  try {
-    return createClient(url, key);
-  } catch (e) {
-    return null;
-  }
-};
-
-/**
- * Extract marketing insights
- * Prioritizes Vercel API Route for security and reliability.
- */
 export const analyzeLinkedInPost = async (content: string, url?: string): Promise<MarketingPost> => {
-  // 1. Attempt to use Server-Side API
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
@@ -42,26 +20,22 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
       body: JSON.stringify({ content, url })
     });
     
-    if (response.ok) {
-      return await response.json();
-    }
+    if (response.ok) return await response.json();
     
     const errData = await response.json().catch(() => ({}));
     if (errData.error) throw new Error(errData.error);
   } catch (e: any) {
-    console.warn("Server-side analysis failed, trying client-side fallback...", e.message);
+    console.warn("Server analysis failed:", e.message);
   }
 
-  // 2. Client-Side Fallback (Requires API_KEY in browser env)
+  // Final fallback requires API_KEY
   const apiKey = getSafeEnv('API_KEY');
-  if (!apiKey) {
-    throw new Error("API configuration missing. Please ensure your Vercel Environment Variables (API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY) are set correctly.");
-  }
+  if (!apiKey) throw new Error("Server communication failed and no client-side API_KEY is configured.");
 
   const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
+  const result = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Analyze this LinkedIn post and provide insights: ${content}`,
+    contents: content,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -80,46 +54,20 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
     }
   });
 
-  const analysis = JSON.parse(response.text || '{}');
-  const postData: MarketingPost = {
-    ...analysis,
-    url: url || null,
-    created_at: new Date().toISOString(),
-    id: crypto.randomUUID()
-  };
-
-  // Save via fallback
-  const supabase = getSupabaseFallback();
-  if (supabase) {
-    const { data } = await supabase.from('marketing_posts').insert([postData]).select().single();
-    if (data) return data;
-  }
-
-  const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
-  localPosts.unshift(postData);
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localPosts));
-  return postData;
+  return JSON.parse(result.text || '{}');
 };
 
-/**
- * Fetch all posts
- */
 export const fetchAllPosts = async (): Promise<MarketingPost[]> => {
   try {
     const response = await fetch('/api/posts');
     if (response.ok) return await response.json();
   } catch (e) {
-    console.warn("Could not reach API posts endpoint, using local cache.");
+    console.warn("Posts fetch failed.");
   }
-
   return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
 };
 
-/**
- * Research library via AI
- */
 export const sendChatMessage = async (message: string, history: ChatMessage[]): Promise<string> => {
-  // 1. Try Server-side Chat
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -131,25 +79,21 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
       const data = await response.json();
       return data.text;
     }
-  } catch (e) {
-    console.warn("Server-side chat failed, falling back to local strategist.");
+    
+    const errData = await response.json().catch(() => ({}));
+    if (errData.error) return `Strategist Error: ${errData.error}`;
+  } catch (e: any) {
+    console.error("Chat connection error:", e);
   }
 
-  // 2. Client-side Fallback
   const apiKey = getSafeEnv('API_KEY');
-  if (!apiKey) return "I'm having trouble connecting to the strategist. Please verify your API configuration.";
+  if (!apiKey) return "The strategist is unavailable. Please check your Vercel logs for API timeout or configuration issues.";
 
+  // Minimal client-side fallback if server fails but local key exists
   const ai = new GoogleGenAI({ apiKey });
-  const posts = await fetchAllPosts();
-  const context = posts.slice(0, 20).map(p => `${p.title}: ${p.core_takeaway}`).join('\n');
-
-  const result = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: message,
-    config: {
-      systemInstruction: `You are a growth strategist. Use this context: ${context}`
-    }
+  const res = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: message
   });
-
-  return result.text || "I couldn't generate a response.";
+  return res.text || "I couldn't generate a response.";
 };
