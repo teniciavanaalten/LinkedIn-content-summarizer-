@@ -4,9 +4,13 @@ import { ChatMessage, MarketingPost } from "./types";
 
 const LOCAL_STORAGE_KEY = 'marketerpulse_library';
 
-const getSafeEnv = (key: string): string | undefined => {
+/**
+ * Safely check for browser-exposed environment variables
+ */
+const getBrowserApiKey = (): string | undefined => {
   try {
-    return typeof process !== 'undefined' ? (process.env as any)[key] : undefined;
+    // In many environments, process.env is shimmed for the browser
+    return (window as any).process?.env?.API_KEY || (process.env as any)?.API_KEY;
   } catch {
     return undefined;
   }
@@ -25,12 +29,12 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
     const errData = await response.json().catch(() => ({}));
     if (errData.error) throw new Error(errData.error);
   } catch (e: any) {
-    console.warn("Server analysis failed:", e.message);
+    console.warn("Server analysis failed, please check Vercel Logs:", e.message);
   }
 
-  // Final fallback requires API_KEY in browser
-  const apiKey = getSafeEnv('API_KEY');
-  if (!apiKey) throw new Error("Server communication failed and no client-side API_KEY is configured.");
+  // Client-side fallback (requires local API_KEY)
+  const apiKey = getBrowserApiKey();
+  if (!apiKey) throw new Error("Connection failed. Please check your internet or Vercel API configuration.");
 
   const ai = new GoogleGenAI({ apiKey });
   const result = await ai.models.generateContent({
@@ -62,7 +66,7 @@ export const fetchAllPosts = async (): Promise<MarketingPost[]> => {
     const response = await fetch('/api/posts');
     if (response.ok) return await response.json();
   } catch (e) {
-    console.warn("Posts fetch failed.");
+    console.warn("Library fetch failed.");
   }
   return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
 };
@@ -82,12 +86,12 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
     
     if (data.error) return `Strategist Error: ${data.error}`;
   } catch (e: any) {
-    console.error("Chat connection error:", e);
+    console.error("Chat fetch error:", e);
   }
 
-  // Last resort fallback
-  const apiKey = getSafeEnv('API_KEY');
-  if (!apiKey) return "The strategist is currently unavailable due to a server configuration issue. Please verify your Vercel environment variables.";
+  // Client-side fallback if server fails
+  const apiKey = getBrowserApiKey();
+  if (!apiKey) return "The strategist is unavailable. This is usually due to missing API_KEY or database connection issues in Vercel.";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -95,8 +99,8 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
       model: 'gemini-3-flash-preview',
       contents: message
     });
-    return res.text || "I was unable to synthesize a response from the library.";
+    return res.text || "No insights found.";
   } catch (err: any) {
-    return `Critical Error: ${err.message}`;
+    return `Strategist Connection Error: ${err.message}`;
   }
 };

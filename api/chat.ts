@@ -6,35 +6,33 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Use the specific environment variable names provided by Vercel/Supabase
+  // Access keys exactly as they are accessed in the working analyze.ts
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-  const apiKey = process.env.API_KEY;
+  const geminiApiKey = process.env.API_KEY;
 
-  // Provide detailed error messaging for easier debugging
-  if (!supabaseUrl || !supabaseAnonKey || !apiKey) {
+  if (!supabaseUrl || !supabaseAnonKey || !geminiApiKey) {
     const missing = [];
     if (!supabaseUrl) missing.push('SUPABASE_URL');
     if (!supabaseAnonKey) missing.push('SUPABASE_ANON_KEY');
-    if (!apiKey) missing.push('API_KEY');
+    if (!geminiApiKey) missing.push('API_KEY');
     
     return res.status(500).json({ 
       error: `Server configuration incomplete. Missing: ${missing.join(', ')}`,
-      status: 'Error'
+      details: "Ensure these are set in your Vercel Project Environment Variables."
     });
   }
 
   const { message } = req.body;
   if (!message) {
-    return res.status(400).json({ error: 'Query is required.' });
+    return res.status(400).json({ error: 'Question is required.' });
   }
 
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    // Use strict SDK initialization format
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-    // Fetch context
+    // Fetch library context (limit to 15 for speed and token efficiency)
     const { data: posts, error: dbError } = await supabase
       .from('marketing_posts')
       .select('title, primary_topic, core_takeaway, key_insights')
@@ -44,21 +42,19 @@ export default async function handler(req: any, res: any) {
     if (dbError) throw dbError;
 
     const contextString = posts && posts.length > 0 
-      ? posts.map((p, i) => 
-          `[${p.primary_topic}] ${p.title}: ${p.core_takeaway}. Key Insights: ${p.key_insights.slice(0, 3).join(', ')}`
+      ? posts.map((p) => 
+          `[${p.primary_topic}] ${p.title}: ${p.core_takeaway}. Insights: ${p.key_insights.slice(0, 2).join(', ')}`
         ).join('\n') 
       : "The library is currently empty.";
 
     const systemInstruction = `You are the MarketerPulse Growth Strategist. 
-    Your role is to help marketers synthesize insights from their saved LinkedIn library.
-    Use the following library context to answer questions strategically. 
-    If the answer isn't in the context, be honest and say so.
-    Be concise, tactical, and strategic. Use Markdown for formatting.
+    Analyze the community library and answer questions tactically. 
+    Use Markdown. Be concise. If no library data exists, provide general expert marketing advice.
 
-    LIBRARY DATA:
+    CURRENT LIBRARY DATA:
     ${contextString}`;
 
-    // Use Gemini 3 Pro for complex synthesis as per model selection guidelines
+    // Gemini 3 Pro is recommended for complex reasoning/synthesis
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: message,
@@ -69,14 +65,14 @@ export default async function handler(req: any, res: any) {
     });
 
     const outputText = response.text;
-    if (!outputText) throw new Error("The strategist was unable to generate a response at this time.");
+    if (!outputText) throw new Error("Strategist failed to generate a response.");
 
     return res.status(200).json({ text: outputText });
 
   } catch (error: any) {
     console.error("Strategist API Error:", error);
     return res.status(500).json({ 
-      error: error.message || 'Strategic synthesis failed.' 
+      error: error.message || 'The strategist encountered an unexpected error.' 
     });
   }
 }
