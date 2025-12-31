@@ -1,54 +1,56 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 
-// Verify environment variables are present
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
-const geminiApiKey = process.env.API_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 export default async function handler(req: any, res: any) {
+  // 1. Check method
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // 2. Check environment variables
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  // We checken beide mogelijke namen voor de API key voor de zekerheid
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+
   if (!supabaseUrl || !supabaseAnonKey || !geminiApiKey) {
-    return res.status(500).json({ error: 'Missing environment variables. Check Vercel configuration.' });
+    return res.status(500).json({ 
+      error: 'Missing environment variables on server.',
+      details: {
+        hasSupabaseUrl: !!supabaseUrl,
+        hasSupabaseKey: !!supabaseAnonKey,
+        hasGeminiKey: !!geminiApiKey
+      }
+    });
   }
 
   const { content, url, userId } = req.body;
 
-  if (!content || content.trim().length === 0) {
-    return res.status(400).json({ error: 'Post content is required.' });
+  if (!content || !userId) {
+    return res.status(400).json({ error: 'Post content and User ID are required.' });
   }
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required for storage.' });
-  }
-
-  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-  
-  const MARKETING_TOPICS = [
-    'LinkedIn Ads', 'Meta Ads', 'Google Ads', 'TikTok Ads', 'Creative Testing',
-    'Media Buying & Scaling', 'Funnels & CRO', 'Landing Pages', 'Lead Generation',
-    'Email & Automation', 'Copywriting', 'Messaging & Positioning',
-    'Personal Branding (LinkedIn)', 'Growth Strategy', 'AI in Marketing',
-    'Analytics & Attribution', 'Agency & Client Management'
-  ];
-
-  const SYSTEM_PROMPT = `You are a professional marketing analyst. 
-  Extract high-signal insights from LinkedIn posts. Remove all fluff, generic motivation, and emojis.
-  
-  Classification: Strictly select ONE category from: ${MARKETING_TOPICS.join(', ')}.
-  
-  Response Format: You MUST return a raw JSON object ONLY. Do not include markdown formatting or backticks.`;
 
   try {
-    // 1. Generate Content with Gemini
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+    
+    const MARKETING_TOPICS = [
+      'LinkedIn Ads', 'Meta Ads', 'Google Ads', 'TikTok Ads', 'Creative Testing',
+      'Media Buying & Scaling', 'Funnels & CRO', 'Landing Pages', 'Lead Generation',
+      'Email & Automation', 'Copywriting', 'Messaging & Positioning',
+      'Personal Branding (LinkedIn)', 'Growth Strategy', 'AI in Marketing',
+      'Analytics & Attribution', 'Agency & Client Management'
+    ];
+
+    const SYSTEM_PROMPT = `You are a professional marketing analyst. 
+    Extract high-signal insights from LinkedIn posts. Remove all fluff and emojis.
+    Classification: Strictly select ONE category from: ${MARKETING_TOPICS.join(', ')}.
+    Response Format: Return raw JSON ONLY.`;
+
+    // 3. AI Analyse
     const result = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Analyze this LinkedIn post and provide the results in the specified JSON format:
+      contents: `Analyze this LinkedIn post:
       URL: ${url || 'Not provided'}
       Content: ${content}`,
       config: {
@@ -70,25 +72,20 @@ export default async function handler(req: any, res: any) {
       }
     });
 
-    if (!result.text) {
-      throw new Error("AI returned an empty response.");
-    }
-
-    // Clean potential markdown formatting from the response string
-    let cleanJson = result.text.trim();
-    if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '').trim();
-    }
+    const textOutput = result.text;
+    if (!textOutput) throw new Error("Gemini returned no text.");
 
     let analysis;
     try {
+      // Strippen van eventuele markdown backticks als Gemini die toch toevoegt
+      const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
       analysis = JSON.parse(cleanJson);
-    } catch (parseError) {
-      console.error("JSON Parsing Error. Raw output:", result.text);
-      throw new Error("Failed to parse AI response as JSON.");
+    } catch (e) {
+      console.error("JSON Parse Error. Raw output:", textOutput);
+      throw new Error("AI output was not valid JSON.");
     }
 
-    // 2. Save result to Supabase
+    // 4. Opslaan in Supabase
     const { data, error } = await supabase
       .from('marketing_posts')
       .insert([
@@ -108,13 +105,17 @@ export default async function handler(req: any, res: any) {
       .single();
 
     if (error) {
-      console.error("Supabase Storage Error:", error);
-      throw new Error(`Database error: ${error.message}`);
+      console.error("Supabase error:", error);
+      throw new Error(`Database storage failed: ${error.message}`);
     }
 
     return res.status(200).json(data);
+
   } catch (error: any) {
-    console.error("Backend Error in analyze endpoint:", error);
-    return res.status(500).json({ error: error.message || 'An unexpected error occurred during processing.' });
+    console.error("Detailed Server Error:", error);
+    return res.status(500).json({ 
+      error: error.message || 'Server analysis failed',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
