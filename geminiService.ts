@@ -1,3 +1,5 @@
+import { ChatMessage } from "./types";
+
 /**
  * Global services for MarketerPulse AI.
  * No user-scoping logic is applied here.
@@ -9,7 +11,7 @@ export const analyzeLinkedInPost = async (content: string, url?: string) => {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ content, url }), // userId removed from request body
+    body: JSON.stringify({ content, url }),
   });
 
   const contentType = response.headers.get("content-type");
@@ -29,10 +31,27 @@ export const analyzeLinkedInPost = async (content: string, url?: string) => {
 };
 
 export const fetchAllPosts = async () => {
-  // Fetching all records without any query parameters
   const response = await fetch(`/api/posts`);
   if (!response.ok) {
     throw new Error('Failed to fetch posts');
   }
   return response.json();
+};
+
+export const sendChatMessage = async (message: string, history: ChatMessage[]) => {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message, history }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Chat failed');
+  }
+
+  const data = await response.json();
+  return data.text;
 };
