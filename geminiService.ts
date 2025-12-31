@@ -2,8 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MARKETING_CATEGORIES } from "./constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const ANALYSIS_SYSTEM_PROMPT = `You are a high-level marketing analyst. Your goal is to capture the *true substance* of LinkedIn marketing posts.
 Ruthlessly remove fluff, hooks, storytelling, emojis, and generic motivation.
 Ignore personal backstories unless they introduce a concrete lesson.
@@ -21,6 +19,8 @@ Summary rules:
 `;
 
 export const analyzeLinkedInPost = async (content: string, url?: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Analyze this LinkedIn post:
@@ -64,6 +64,10 @@ export const analyzeLinkedInPost = async (content: string, url?: string) => {
       }
     }
   });
+
+  if (!response.text) {
+    throw new Error("No response text from Gemini API");
+  }
 
   return JSON.parse(response.text);
 };
