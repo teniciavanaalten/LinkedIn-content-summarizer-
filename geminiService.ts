@@ -28,7 +28,7 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
     console.warn("Server analysis failed:", e.message);
   }
 
-  // Final fallback requires API_KEY
+  // Final fallback requires API_KEY in browser
   const apiKey = getSafeEnv('API_KEY');
   if (!apiKey) throw new Error("Server communication failed and no client-side API_KEY is configured.");
 
@@ -75,25 +75,28 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
       body: JSON.stringify({ message, history })
     });
     
+    const data = await response.json();
     if (response.ok) {
-      const data = await response.json();
       return data.text;
     }
     
-    const errData = await response.json().catch(() => ({}));
-    if (errData.error) return `Strategist Error: ${errData.error}`;
+    if (data.error) return `Strategist Error: ${data.error}`;
   } catch (e: any) {
     console.error("Chat connection error:", e);
   }
 
+  // Last resort fallback
   const apiKey = getSafeEnv('API_KEY');
-  if (!apiKey) return "The strategist is unavailable. Please check your Vercel logs for API timeout or configuration issues.";
+  if (!apiKey) return "The strategist is currently unavailable due to a server configuration issue. Please verify your Vercel environment variables.";
 
-  // Minimal client-side fallback if server fails but local key exists
-  const ai = new GoogleGenAI({ apiKey });
-  const res = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: message
-  });
-  return res.text || "I couldn't generate a response.";
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const res = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: message
+    });
+    return res.text || "I was unable to synthesize a response from the library.";
+  } catch (err: any) {
+    return `Critical Error: ${err.message}`;
+  }
 };
