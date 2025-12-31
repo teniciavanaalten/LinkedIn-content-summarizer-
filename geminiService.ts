@@ -5,50 +5,31 @@ import { ChatMessage, MarketingPost } from "./types";
 const LOCAL_STORAGE_KEY = 'marketerpulse_library';
 
 /**
- * Safely access environment variables
- */
-const getEnv = (key: string): string => {
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return (process.env as any)[key] || '';
-    }
-  } catch (e) {}
-  return '';
-};
-
-/**
- * Check if Supabase is properly configured
- */
-const isSupabaseConfigured = (): boolean => {
-  const url = getEnv('SUPABASE_URL');
-  const key = getEnv('SUPABASE_ANON_KEY');
-  return !!(url && key);
-};
-
-/**
- * Initialize Supabase client if possible
+ * Initialize Supabase client with a silent fallback
  */
 const getSupabase = () => {
-  if (!isSupabaseConfigured()) return null;
-  return createClient(getEnv('SUPABASE_URL'), getEnv('SUPABASE_ANON_KEY'));
-};
-
-/**
- * Initialize Gemini AI
- */
-const getAI = () => {
-  const apiKey = getEnv('API_KEY');
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please ensure the API_KEY environment variable is set.");
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  
+  if (!url || !key) {
+    console.warn("Supabase credentials missing. Switching to Local Storage mode.");
+    return null;
   }
-  return new GoogleGenAI({ apiKey });
+  
+  try {
+    return createClient(url, key);
+  } catch (e) {
+    console.error("Supabase initialization failed:", e);
+    return null;
+  }
 };
 
 /**
  * Extract marketing insights using Gemini 3 Flash
  */
 export const analyzeLinkedInPost = async (content: string, url?: string): Promise<MarketingPost> => {
-  const ai = getAI();
+  // Use process.env.API_KEY directly as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const MARKETING_TOPICS = [
     'LinkedIn Ads', 'Meta Ads', 'Google Ads', 'TikTok Ads', 'Creative Testing',
@@ -88,7 +69,7 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
   });
 
   const analysis = JSON.parse(response.text || '{}');
-  const postData = {
+  const postData: MarketingPost = {
     ...analysis,
     url: url || null,
     created_at: new Date().toISOString(),
@@ -97,24 +78,28 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
 
   const supabase = getSupabase();
   if (supabase) {
-    const { data, error } = await supabase
-      .from('marketing_posts')
-      .insert([postData])
-      .select()
-      .single();
-    if (error) throw new Error(`Database error: ${error.message}`);
-    return data;
-  } else {
-    // Fallback to Local Storage
-    const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
-    localPosts.unshift(postData);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localPosts));
-    return postData;
+    try {
+      const { data, error } = await supabase
+        .from('marketing_posts')
+        .insert([postData])
+        .select()
+        .single();
+      if (!error) return data;
+      console.error("Supabase insert error:", error);
+    } catch (e) {
+      console.error("Supabase failed:", e);
+    }
   }
+
+  // Fallback to Local Storage
+  const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+  localPosts.unshift(postData);
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localPosts));
+  return postData;
 };
 
 /**
- * Fetch all shared community posts
+ * Fetch all posts (Supabase with LocalStorage fallback)
  */
 export const fetchAllPosts = async (): Promise<MarketingPost[]> => {
   const supabase = getSupabase();
@@ -124,26 +109,24 @@ export const fetchAllPosts = async (): Promise<MarketingPost[]> => {
         .from('marketing_posts')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      if (!error && data) return data;
     } catch (e) {
-      console.warn("Supabase fetch failed, falling back to local storage.", e);
+      console.warn("Supabase fetch failed, checking local storage.");
     }
   }
 
-  // Fallback to Local Storage
   const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
   return localPosts;
 };
 
 /**
- * Research library using Gemini 3 Pro (NotebookLM Style)
+ * Research library using Gemini 3 Pro
  */
 export const sendChatMessage = async (message: string, history: ChatMessage[]): Promise<string> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   const posts = await fetchAllPosts();
   
-  const limitedPosts = posts.slice(0, 50);
+  const limitedPosts = posts.slice(0, 40);
   const contextString = limitedPosts.length > 0 
     ? limitedPosts.map((p, i) => 
         `POST #${i+1}:
