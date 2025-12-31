@@ -3,12 +3,11 @@ import { analyzeLinkedInPost } from '../geminiService';
 import { MarketingPost } from '../types';
 
 interface PostInputProps {
-  userId: string;
   onPostCreated: (post: MarketingPost) => void;
   onCancel: () => void;
 }
 
-const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }) => {
+const PostInput: React.FC<PostInputProps> = ({ onPostCreated, onCancel }) => {
   const [url, setUrl] = useState('');
   const [content, setContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -25,11 +24,12 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
     setError(null);
 
     try {
-      const savedPost = await analyzeLinkedInPost(content, userId, url);
+      // Analyze and save to global library (no userId passed)
+      const savedPost = await analyzeLinkedInPost(content, url);
       onPostCreated(savedPost);
     } catch (err: any) {
-      console.error("Analysis Request Error:", err);
-      setError(err.message || "Analysis failed. Please check your connection and environment variables.");
+      console.error("Global Analysis Error:", err);
+      setError(err.message || "Analysis failed. Please check backend environment variables.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -39,8 +39,8 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
     <div className="max-w-3xl mx-auto py-12 px-4">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden p-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Extract Insights</h2>
-          <p className="text-slate-500">Paste a LinkedIn post below. We'll strip the fluff and store it in your cloud library.</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Contribute to Community</h2>
+          <p className="text-slate-500">Paste a LinkedIn post below. We'll strip the fluff and add it to the shared global library.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -92,10 +92,10 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Analyzing Insights...
+                  Analyzing for Community...
                 </>
               ) : (
-                <>Analyze & Save</>
+                <>Analyze & Store Globally</>
               )}
             </button>
             <button

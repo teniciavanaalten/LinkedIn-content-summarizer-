@@ -1,23 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-);
-
 export default async function handler(req: any, res: any) {
-  const { userId } = req.query;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required' });
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return res.status(500).json({ error: 'Supabase environment variables are missing.' });
   }
 
   if (req.method === 'GET') {
     try {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      
+      // FETCH ALL POSTS GLOBALLY
+      // We removed the .eq('user_id', ...) filter so every visitor sees the same library.
       const { data, error } = await supabase
         .from('marketing_posts')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

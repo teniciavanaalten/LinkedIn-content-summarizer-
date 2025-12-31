@@ -1,10 +1,15 @@
-export const analyzeLinkedInPost = async (content: string, userId: string, url?: string) => {
+/**
+ * Global services for MarketerPulse AI.
+ * No user-scoping logic is applied here.
+ */
+
+export const analyzeLinkedInPost = async (content: string, url?: string) => {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ content, url, userId }),
+    body: JSON.stringify({ content, url }), // userId removed from request body
   });
 
   const contentType = response.headers.get("content-type");
@@ -14,7 +19,6 @@ export const analyzeLinkedInPost = async (content: string, userId: string, url?:
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to analyze post');
     } else {
-      // Als de server HTML teruggeeft (Vercel error page)
       const text = await response.text();
       console.error("Server returned non-JSON response:", text);
       throw new Error(`Server error (${response.status}). Check Vercel logs.`);
@@ -24,8 +28,9 @@ export const analyzeLinkedInPost = async (content: string, userId: string, url?:
   return response.json();
 };
 
-export const fetchUserPosts = async (userId: string) => {
-  const response = await fetch(`/api/posts?userId=${userId}`);
+export const fetchAllPosts = async () => {
+  // Fetching all records without any query parameters
+  const response = await fetch(`/api/posts`);
   if (!response.ok) {
     throw new Error('Failed to fetch posts');
   }

@@ -4,7 +4,7 @@ import { MARKETING_CATEGORIES } from './constants';
 import PostCard from './components/PostCard';
 import PostDetail from './components/PostDetail';
 import PostInput from './components/PostInput';
-import { fetchUserPosts } from './geminiService';
+import { fetchAllPosts } from './geminiService';
 
 const App: React.FC = () => {
   const [posts, setPosts] = useState<MarketingPost[]>([]);
@@ -13,42 +13,33 @@ const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [userId, setUserId] = useState<string>('');
 
-  // Initialiseer unieke anonieme user ID voor dit apparaat
+  /**
+   * GLOBAL INITIALIZATION
+   * Fetches all posts from the shared Supabase library on app mount.
+   */
   useEffect(() => {
-    let id = localStorage.getItem('marketer_pulse_user_id');
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('marketer_pulse_user_id', id);
-    }
-    setUserId(id);
-  }, []);
-
-  // Laad posts van de database wanneer userId bekend is
-  useEffect(() => {
-    if (!userId) return;
-
-    const loadPosts = async () => {
+    const loadGlobalPosts = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchUserPosts(userId);
+        const data = await fetchAllPosts();
         setPosts(data);
       } catch (e) {
-        console.error("Failed to load posts from database", e);
+        console.error("Failed to load community posts", e);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadPosts();
-  }, [userId]);
+    loadGlobalPosts();
+  }, []);
 
   const filteredPosts = useMemo(() => {
     return posts.filter(post => {
       const matchesCategory = activeCategory ? post.primary_topic === activeCategory : true;
-      const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            post.core_takeaway.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = 
+        post.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        post.core_takeaway.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [posts, activeCategory, searchQuery]);
@@ -68,8 +59,8 @@ const App: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Growth Library</h1>
-          <p className="text-slate-500">Your high-signal marketing knowledge base.</p>
+          <h1 className="text-2xl font-extrabold text-slate-900">Community Growth Library</h1>
+          <p className="text-slate-500">Shared high-signal marketing knowledge base from all members.</p>
         </div>
         <button 
           onClick={() => setViewMode(ViewMode.NewPost)}
@@ -78,7 +69,7 @@ const App: React.FC = () => {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Analyze New Post
+          Contribute New Insight
         </button>
       </div>
 
@@ -89,7 +80,7 @@ const App: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search insights..."
+              placeholder="Search community..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
             />
             <svg className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +89,7 @@ const App: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Folders</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Knowledge Folders</h3>
             <div className="space-y-1">
               <button 
                 onClick={() => setActiveCategory(null)}
@@ -106,7 +97,7 @@ const App: React.FC = () => {
                   activeCategory === null ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                All Posts
+                All Community Posts
               </button>
               {MARKETING_CATEGORIES.map(cat => (
                 <button 
@@ -116,7 +107,7 @@ const App: React.FC = () => {
                     activeCategory === cat.name ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  {cat.name}
+                  <span className="truncate">{cat.name}</span>
                   {posts.filter(p => p.primary_topic === cat.name).length > 0 && (
                     <span className="ml-2 bg-slate-200 text-slate-500 px-1.5 rounded text-[10px] font-bold">
                       {posts.filter(p => p.primary_topic === cat.name).length}
@@ -146,20 +137,18 @@ const App: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">No insights here yet</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Library is empty</h3>
               <p className="text-slate-500 mb-6 max-w-sm mx-auto">
                 {searchQuery || activeCategory 
-                  ? "Try clearing your filters to see more content." 
-                  : "Your library is empty. Add a LinkedIn post to start extracting growth tactics."}
+                  ? "Try clearing your filters to see more community content." 
+                  : "Start the library by contributing the first LinkedIn growth tactic!"}
               </p>
-              {!searchQuery && !activeCategory && (
-                <button 
-                  onClick={() => setViewMode(ViewMode.NewPost)}
-                  className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
-                >
-                  Start your first analysis →
-                </button>
-              )}
+              <button 
+                onClick={() => setViewMode(ViewMode.NewPost)}
+                className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
+              >
+                Contribute an analysis →
+              </button>
             </div>
           )}
         </div>
@@ -195,7 +184,6 @@ const App: React.FC = () => {
         {viewMode === ViewMode.Dashboard && renderDashboard()}
         {viewMode === ViewMode.NewPost && (
           <PostInput 
-            userId={userId}
             onPostCreated={handlePostCreated} 
             onCancel={() => setViewMode(ViewMode.Dashboard)} 
           />
@@ -207,7 +195,7 @@ const App: React.FC = () => {
 
       <footer className="bg-white border-t border-slate-200 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. Optimized for high-signal marketing knowledge.</p>
+          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. Shared community knowledge hub.</p>
         </div>
       </footer>
     </div>
