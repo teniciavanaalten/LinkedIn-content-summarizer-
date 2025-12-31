@@ -6,7 +6,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Access keys exactly as they are accessed in the working analyze.ts
+  // Exact same access pattern as analyze.ts to ensure consistency
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
   const geminiApiKey = process.env.API_KEY;
@@ -19,7 +19,7 @@ export default async function handler(req: any, res: any) {
     
     return res.status(500).json({ 
       error: `Server configuration incomplete. Missing: ${missing.join(', ')}`,
-      details: "Ensure these are set in your Vercel Project Environment Variables."
+      details: "Check Vercel environment variables. If they are set, try a fresh redeploy."
     });
   }
 
@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any) {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-    // Fetch library context (limit to 15 for speed and token efficiency)
+    // Fetch library context (limit 15 for stability)
     const { data: posts, error: dbError } = await supabase
       .from('marketing_posts')
       .select('title, primary_topic, core_takeaway, key_insights')
@@ -41,22 +41,28 @@ export default async function handler(req: any, res: any) {
 
     if (dbError) throw dbError;
 
-    const contextString = posts && posts.length > 0 
-      ? posts.map((p) => 
-          `[${p.primary_topic}] ${p.title}: ${p.core_takeaway}. Insights: ${p.key_insights.slice(0, 2).join(', ')}`
-        ).join('\n') 
+    // Safety mapping for potentially null/undefined fields in database
+    const contextString = (posts && posts.length > 0)
+      ? posts.map((p) => {
+          const title = p.title || "Untitled Post";
+          const topic = p.primary_topic || "General";
+          const takeaway = p.core_takeaway || "No takeaway provided.";
+          const insights = Array.isArray(p.key_insights) ? p.key_insights.slice(0, 2).join(', ') : "None";
+          return `[${topic}] ${title}: ${takeaway}. Insights: ${insights}`;
+        }).join('\n') 
       : "The library is currently empty.";
 
     const systemInstruction = `You are the MarketerPulse Growth Strategist. 
     Analyze the community library and answer questions tactically. 
-    Use Markdown. Be concise. If no library data exists, provide general expert marketing advice.
+    Use Markdown. Be concise and helpful. 
+    If library data is missing, provide general expert marketing strategy advice.
 
     CURRENT LIBRARY DATA:
     ${contextString}`;
 
-    // Gemini 3 Pro is recommended for complex reasoning/synthesis
+    // Standardizing on 'gemini-3-flash-preview' for initial troubleshooting
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: message,
       config: {
         systemInstruction,
@@ -65,14 +71,14 @@ export default async function handler(req: any, res: any) {
     });
 
     const outputText = response.text;
-    if (!outputText) throw new Error("Strategist failed to generate a response.");
+    if (!outputText) throw new Error("Strategist failed to generate a response text.");
 
     return res.status(200).json({ text: outputText });
 
   } catch (error: any) {
     console.error("Strategist API Error:", error);
     return res.status(500).json({ 
-      error: error.message || 'The strategist encountered an unexpected error.' 
+      error: error.message || 'The strategist encountered an internal processing error.' 
     });
   }
 }
