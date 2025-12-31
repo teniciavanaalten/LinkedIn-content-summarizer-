@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { MarketingPost, ViewMode } from './types';
 import { MARKETING_CATEGORIES } from './constants';
@@ -13,7 +12,6 @@ const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Persist posts
   useEffect(() => {
     const saved = localStorage.getItem('marketer_pulse_posts');
     if (saved) {
@@ -31,10 +29,9 @@ const App: React.FC = () => {
 
   const filteredPosts = useMemo(() => {
     return posts.filter(post => {
-      const matchesCategory = activeCategory ? post.primaryTopic === activeCategory : true;
+      const matchesCategory = activeCategory ? post.primary_topic === activeCategory : true;
       const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            post.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            post.coreTakeaway.toLowerCase().includes(searchQuery.toLowerCase());
+                            post.core_takeaway.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [posts, activeCategory, searchQuery]);
@@ -64,12 +61,11 @@ const App: React.FC = () => {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add New Post
+          Analyze New Post
         </button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar */}
         <div className="lg:w-64 shrink-0 space-y-6">
           <div className="relative">
             <input 
@@ -103,10 +99,10 @@ const App: React.FC = () => {
                     activeCategory === cat.name ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  {cat.name.split(' & ')[0]}
-                  {posts.filter(p => p.primaryTopic === cat.name).length > 0 && (
+                  {cat.name}
+                  {posts.filter(p => p.primary_topic === cat.name).length > 0 && (
                     <span className="ml-2 bg-slate-200 text-slate-500 px-1.5 rounded text-[10px] font-bold">
-                      {posts.filter(p => p.primaryTopic === cat.name).length}
+                      {posts.filter(p => p.primary_topic === cat.name).length}
                     </span>
                   )}
                 </button>
@@ -115,7 +111,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="flex-grow">
           {filteredPosts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -130,18 +125,18 @@ const App: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">No posts found</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">No insights here yet</h3>
               <p className="text-slate-500 mb-6 max-w-sm mx-auto">
                 {searchQuery || activeCategory 
                   ? "Try clearing your filters to see more content." 
-                  : "Your library is empty. Add your first LinkedIn post to start building your knowledge base."}
+                  : "Your library is empty. Add a LinkedIn post to start extracting growth tactics."}
               </p>
               {!searchQuery && !activeCategory && (
                 <button 
                   onClick={() => setViewMode(ViewMode.NewPost)}
                   className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
                 >
-                  Create your first analysis →
+                  Start your first analysis →
                 </button>
               )}
             </div>
@@ -171,9 +166,6 @@ const App: React.FC = () => {
               </div>
               <span className="text-xl font-black text-slate-900 tracking-tight">MarketerPulse<span className="text-indigo-600">AI</span></span>
             </div>
-            <div className="hidden sm:flex items-center gap-6">
-              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">V1.0 BETA</span>
-            </div>
           </div>
         </div>
       </header>
@@ -193,7 +185,7 @@ const App: React.FC = () => {
 
       <footer className="bg-white border-t border-slate-200 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. Optimized for high-signal growth analysis.</p>
+          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. Optimized for high-signal marketing knowledge.</p>
         </div>
       </footer>
     </div>
