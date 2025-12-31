@@ -27,9 +27,9 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
     try {
       const savedPost = await analyzeLinkedInPost(content, userId, url);
       onPostCreated(savedPost);
-    } catch (err) {
-      console.error(err);
-      setError("Analysis failed. Please try again.");
+    } catch (err: any) {
+      console.error("Analysis Request Error:", err);
+      setError(err.message || "Analysis failed. Please check your connection and environment variables.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -72,11 +72,11 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
           </div>
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm flex items-start">
+              <svg className="w-5 h-5 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {error}
+              <span>{error}</span>
             </div>
           )}
 
@@ -92,7 +92,7 @@ const PostInput: React.FC<PostInputProps> = ({ userId, onPostCreated, onCancel }
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Syncing with Cloud...
+                  Analyzing Insights...
                 </>
               ) : (
                 <>Analyze & Save</>
