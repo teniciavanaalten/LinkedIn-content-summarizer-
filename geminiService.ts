@@ -5,52 +5,64 @@ import { ChatMessage, MarketingPost } from "./types";
 const LOCAL_STORAGE_KEY = 'marketerpulse_library';
 
 /**
- * Initialize Supabase client with a silent fallback
+ * Safely access environment variables with a fallback
  */
-const getSupabase = () => {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
-  
-  if (!url || !key) {
-    console.warn("Supabase credentials missing. Switching to Local Storage mode.");
-    return null;
+const getSafeEnv = (key: string): string | undefined => {
+  try {
+    return typeof process !== 'undefined' ? (process.env as any)[key] : undefined;
+  } catch {
+    return undefined;
   }
-  
+};
+
+/**
+ * Initialize Client-side Supabase (Fallback only)
+ */
+const getSupabaseFallback = () => {
+  const url = getSafeEnv('SUPABASE_URL');
+  const key = getSafeEnv('SUPABASE_ANON_KEY');
+  if (!url || !key) return null;
   try {
     return createClient(url, key);
   } catch (e) {
-    console.error("Supabase initialization failed:", e);
     return null;
   }
 };
 
 /**
- * Extract marketing insights using Gemini 3 Flash
+ * Extract marketing insights
+ * Prioritizes Vercel API Route for security and reliability.
  */
 export const analyzeLinkedInPost = async (content: string, url?: string): Promise<MarketingPost> => {
-  // Use process.env.API_KEY directly as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  
-  const MARKETING_TOPICS = [
-    'LinkedIn Ads', 'Meta Ads', 'Google Ads', 'TikTok Ads', 'Creative Testing',
-    'Media Buying & Scaling', 'Funnels & CRO', 'Landing Pages', 'Lead Generation',
-    'Email & Automation', 'Copywriting', 'Messaging & Positioning',
-    'Personal Branding (LinkedIn)', 'Growth Strategy', 'AI in Marketing',
-    'Analytics & Attribution', 'Agency & Client Management'
-  ];
+  // 1. Attempt to use Server-Side API
+  try {
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, url })
+    });
+    
+    if (response.ok) {
+      return await response.json();
+    }
+    
+    const errData = await response.json().catch(() => ({}));
+    if (errData.error) throw new Error(errData.error);
+  } catch (e: any) {
+    console.warn("Server-side analysis failed, trying client-side fallback...", e.message);
+  }
 
-  const SYSTEM_PROMPT = `You are a professional marketing analyst. 
-  Extract high-signal insights from LinkedIn posts. Remove all fluff and emojis.
-  Classification: Strictly select ONE category from: ${MARKETING_TOPICS.join(', ')}.
-  Response Format: Return raw JSON ONLY.`;
+  // 2. Client-Side Fallback (Requires API_KEY in browser env)
+  const apiKey = getSafeEnv('API_KEY');
+  if (!apiKey) {
+    throw new Error("API configuration missing. Please ensure your Vercel Environment Variables (API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY) are set correctly.");
+  }
 
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Analyze this LinkedIn post and provide high-signal marketing insights:
-    URL: ${url || 'Not provided'}
-    Content: ${content}`,
+    contents: `Analyze this LinkedIn post and provide insights: ${content}`,
     config: {
-      systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -76,22 +88,13 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
     id: crypto.randomUUID()
   };
 
-  const supabase = getSupabase();
+  // Save via fallback
+  const supabase = getSupabaseFallback();
   if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('marketing_posts')
-        .insert([postData])
-        .select()
-        .single();
-      if (!error) return data;
-      console.error("Supabase insert error:", error);
-    } catch (e) {
-      console.error("Supabase failed:", e);
-    }
+    const { data } = await supabase.from('marketing_posts').insert([postData]).select().single();
+    if (data) return data;
   }
 
-  // Fallback to Local Storage
   const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
   localPosts.unshift(postData);
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localPosts));
@@ -99,63 +102,54 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
 };
 
 /**
- * Fetch all posts (Supabase with LocalStorage fallback)
+ * Fetch all posts
  */
 export const fetchAllPosts = async (): Promise<MarketingPost[]> => {
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('marketing_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) return data;
-    } catch (e) {
-      console.warn("Supabase fetch failed, checking local storage.");
-    }
+  try {
+    const response = await fetch('/api/posts');
+    if (response.ok) return await response.json();
+  } catch (e) {
+    console.warn("Could not reach API posts endpoint, using local cache.");
   }
 
-  const localPosts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
-  return localPosts;
+  return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
 };
 
 /**
- * Research library using Gemini 3 Pro
+ * Research library via AI
  */
 export const sendChatMessage = async (message: string, history: ChatMessage[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  // 1. Try Server-side Chat
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.text;
+    }
+  } catch (e) {
+    console.warn("Server-side chat failed, falling back to local strategist.");
+  }
+
+  // 2. Client-side Fallback
+  const apiKey = getSafeEnv('API_KEY');
+  if (!apiKey) return "I'm having trouble connecting to the strategist. Please verify your API configuration.";
+
+  const ai = new GoogleGenAI({ apiKey });
   const posts = await fetchAllPosts();
-  
-  const limitedPosts = posts.slice(0, 40);
-  const contextString = limitedPosts.length > 0 
-    ? limitedPosts.map((p, i) => 
-        `POST #${i+1}:
-        Title: ${p.title}
-        Category: ${p.primary_topic}
-        Takeaway: ${p.core_takeaway}
-        Insights: ${p.key_insights.join(', ')}`
-      ).join('\n\n') 
-    : "The library is currently empty.";
+  const context = posts.slice(0, 20).map(p => `${p.title}: ${p.core_takeaway}`).join('\n');
 
-  const systemInstruction = `You are the MarketerPulse AI Growth Strategist. 
-  Your knowledge is strictly limited to the provided marketing library context.
-  Research the community knowledge base and synthesize helpful, strategic answers.
-  
-  GUIDELINES:
-  1. Only use information from the provided context.
-  2. If the library doesn't have the answer, say so.
-  3. Use Markdown for clarity.
-  
-  LIBRARY CONTEXT:
-  ${contextString}`;
-
-  const response = await ai.models.generateContent({
+  const result = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: message,
     config: {
-      systemInstruction,
+      systemInstruction: `You are a growth strategist. Use this context: ${context}`
     }
   });
 
-  return response.text || "I couldn't synthesize a response from the library data.";
+  return result.text || "I couldn't generate a response.";
 };
