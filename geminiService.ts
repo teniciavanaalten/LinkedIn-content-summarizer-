@@ -8,8 +8,8 @@ const LOCAL_STORAGE_KEY = 'marketerpulse_library';
  */
 const getBrowserApiKey = (): string | undefined => {
   try {
-    // Check various common browser-exposed paths
-    return (window as any).process?.env?.API_KEY || (process.env as any)?.API_KEY;
+    const win = window as any;
+    return win.process?.env?.API_KEY || process.env?.API_KEY;
   } catch {
     return undefined;
   }
@@ -32,7 +32,7 @@ export const analyzeLinkedInPost = async (content: string, url?: string): Promis
 
   // Client-side fallback (requires local API_KEY)
   const apiKey = getBrowserApiKey();
-  if (!apiKey) throw new Error("Could not connect to the analyst. Check your internet or Vercel config.");
+  if (!apiKey) throw new Error("Connection failed. Check your internet or Vercel API configuration.");
 
   const ai = new GoogleGenAI({ apiKey });
   const result = await ai.models.generateContent({
@@ -82,14 +82,17 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
       return data.text;
     }
     
-    if (data.error) return `Strategist Error: ${data.error}`;
+    if (data.error) {
+      console.error("Strategist Error Details:", data.debug);
+      return `Strategist Error: ${data.error} (Check console for debug info)`;
+    }
   } catch (e: any) {
     console.error("Chat connection error:", e);
   }
 
   // Client-side fallback if server fails
   const apiKey = getBrowserApiKey();
-  if (!apiKey) return "The strategist is currently unreachable. This is likely a Vercel configuration issue or a temporary timeout.";
+  if (!apiKey) return "The strategist is unreachable. This is likely a configuration issue in Vercel.";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -97,8 +100,8 @@ export const sendChatMessage = async (message: string, history: ChatMessage[]): 
       model: 'gemini-3-flash-preview',
       contents: message
     });
-    return res.text || "I was unable to retrieve insights.";
+    return res.text || "No insights found.";
   } catch (err: any) {
-    return `Critical Connection Error: ${err.message}`;
+    return `Strategist Connection Error: ${err.message}`;
   }
 };
