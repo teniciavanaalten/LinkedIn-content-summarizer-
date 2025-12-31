@@ -16,24 +16,20 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  /**
-   * GLOBAL INITIALIZATION
-   * Fetches all posts from the shared Supabase library on app mount.
-   */
-  useEffect(() => {
-    const loadGlobalPosts = async () => {
-      setIsLoading(true);
-      try {
-        const data = await fetchAllPosts();
-        setPosts(data);
-      } catch (e) {
-        console.error("Failed to load community posts", e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const loadPosts = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchAllPosts();
+      setPosts(data);
+    } catch (e: any) {
+      console.error("Failed to load library", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    loadGlobalPosts();
+  useEffect(() => {
+    loadPosts();
   }, []);
 
   const filteredPosts = useMemo(() => {
@@ -61,8 +57,8 @@ const App: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Community Growth Library</h1>
-          <p className="text-slate-500">Shared high-signal marketing knowledge base from all members.</p>
+          <h1 className="text-2xl font-extrabold text-slate-900">Growth Strategy Library</h1>
+          <p className="text-slate-500">High-signal marketing knowledge base extracted from LinkedIn.</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -81,7 +77,7 @@ const App: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Contribute Insight
+            Analyze Post
           </button>
         </div>
       </div>
@@ -93,7 +89,7 @@ const App: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search community..."
+              placeholder="Search library..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
             />
             <svg className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +106,7 @@ const App: React.FC = () => {
                   activeCategory === null ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                All Community Posts
+                All Posts
               </button>
               {MARKETING_CATEGORIES.map(cat => (
                 <button 
@@ -154,13 +150,13 @@ const App: React.FC = () => {
               <p className="text-slate-500 mb-6 max-w-sm mx-auto">
                 {searchQuery || activeCategory 
                   ? "Try clearing your filters to see more community content." 
-                  : "Start the library by contributing the first LinkedIn growth tactic!"}
+                  : "Start your knowledge hub by analyzing the first LinkedIn post!"}
               </p>
               <button 
                 onClick={() => setViewMode(ViewMode.NewPost)}
                 className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
               >
-                Contribute an analysis →
+                Analyze a post now →
               </button>
             </div>
           )}
@@ -208,11 +204,10 @@ const App: React.FC = () => {
 
       <footer className="bg-white border-t border-slate-200 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. Shared community knowledge hub.</p>
+          <p className="text-sm text-slate-400">© 2024 MarketerPulse AI. AI-Powered Marketing Intelligence.</p>
         </div>
       </footer>
 
-      {/* GLOBAL CHAT DRAWER */}
       <ChatInterface isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
